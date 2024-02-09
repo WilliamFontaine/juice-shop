@@ -8,6 +8,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import { UserModel } from '../models/user'
 
 import * as utils from '../lib/utils'
+import { QueryTypes } from 'sequelize'
 const challengeUtils = require('../lib/challengeUtils')
 const challenges = require('../data/datacache').challenges
 
@@ -20,7 +21,14 @@ module.exports = function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
     let criteria: any = req.query.q === 'undefined' ? '' : req.query.q ?? ''
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-    models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge
+    let request
+    if (criteria === '') {
+      request = models.sequelize.query('SELECT * FROM Products ORDER BY NAME')
+    } else {
+      request = models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE $1 OR description LIKE $1) AND deletedAt IS NULL) ORDER BY name',
+        { bind: [`%${criteria}%`], type: QueryTypes.SELECT })
+    }
+    request
       .then(([products]: any) => {
         const dataString = JSON.stringify(products)
         if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge)) { // vuln-code-snippet hide-start
